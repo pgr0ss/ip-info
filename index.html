@@ -214,6 +214,15 @@
             "back in time. Usually a very slow or dropping data connection.",
         };
       }
+      if (e && e.apiError) {
+        return {
+          msg: e.apiError.title + " — " + e.apiError.message,
+          hint: e.apiStatus === 429
+            ? "ipinfo.io rate limit hit (HTTP 429). The free tier allows a " +
+              "limited number of requests; sign up for a token to raise it."
+            : "ipinfo.io returned an error (HTTP " + (e.apiStatus || "?") + ").",
+        };
+      }
       if (e && typeof e.message === "string" && e.message.startsWith("HTTP ")) {
         return {
           msg: "Server responded with " + e.message,
@@ -343,8 +352,13 @@
           cache: "no-store",
           headers: { Accept: "application/json" },
         });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!res.ok || (data && data.error)) {
+          const e = new Error("HTTP " + res.status);
+          e.apiStatus = data && data.status ? data.status : res.status;
+          e.apiError = data && data.error ? data.error : null;
+          throw e;
+        }
         lastData = data;
         lastSuccessAt = Date.now();
         lastAttemptOk = true;
