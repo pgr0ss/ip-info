@@ -103,6 +103,14 @@
     }
     .times .row span:first-child { color: var(--muted); }
     .muted { color: var(--muted); }
+    #diagCard { border: 1px solid var(--offline); }
+    .diag-msg {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.95rem;
+      color: #ff9b8f;
+      word-break: break-word;
+      margin-bottom: 0.75rem;
+    }
   </style>
 </head>
 <body>
@@ -110,6 +118,12 @@
     <div id="status" class="checking">
       CHECKING…
       <span class="sub" id="statusSub"></span>
+    </div>
+
+    <div class="card" id="diagCard" hidden>
+      <div class="label">Why it's failing</div>
+      <div class="diag-msg" id="diagMsg"></div>
+      <dl id="diagInfo"></dl>
     </div>
 
     <div class="card">
@@ -147,11 +161,15 @@
     let lastSuccessAt = null;
     let lastAttemptAt = null;
     let lastAttemptOk = null;
+    let lastError = null;
     let inFlight = false;
 
     const el = {
       status: document.getElementById("status"),
       statusSub: document.getElementById("statusSub"),
+      diagCard: document.getElementById("diagCard"),
+      diagMsg: document.getElementById("diagMsg"),
+      diagInfo: document.getElementById("diagInfo"),
       ip: document.getElementById("ip"),
       details: document.getElementById("details"),
       lastSuccess: document.getElementById("lastSuccess"),
@@ -180,6 +198,67 @@
 
     function clockTime(d) {
       return d.toLocaleTimeString([], { hour12: false });
+    }
+
+    function describeError(e) {
+      if (e && e.name === "AbortError") {
+        return {
+          msg: "Timed out after " + TIMEOUT_MS / 1000 + "s \u2014 request sent, no response",
+          hint: "The connection is up enough to start a request but nothing came " +
+            "back in time. Usually a very slow or dropping data connection.",
+        };
+      }
+      if (e && typeof e.message === "string" && e.message.startsWith("HTTP ")) {
+        return {
+          msg: "Server responded with " + e.message,
+          hint: "The endpoint was reachable but returned an error status " +
+            "(e.g. 429 = rate limited).",
+        };
+      }
+      const name = e && e.name ? e.name : "Error";
+      const message = e && e.message ? e.message : String(e);
+      return {
+        msg: name + ": " + message,
+        hint: navigator.onLine
+          ? "The device reports it is online, but the request never completed. " +
+            "Likely a blocked request (content/ad blocker, VPN, or DNS filter), " +
+            "a CORS rejection, or the endpoint being unreachable."
+          : "The device reports it is offline \u2014 no network connection.",
+      };
+    }
+
+    function renderDiag() {
+      if (lastAttemptOk === false && lastError) {
+        el.diagCard.hidden = false;
+        el.diagMsg.textContent = lastError.msg;
+        const rows = [
+          ["hint", lastError.hint],
+          ["endpoint", ENDPOINT],
+          ["device online", navigator.onLine ? "yes" : "no"],
+          ["connection", connectionInfo()],
+        ];
+        const frag = document.createDocumentFragment();
+        for (const [k, v] of rows) {
+          if (!v) continue;
+          const dt = document.createElement("dt");
+          dt.textContent = k;
+          const dd = document.createElement("dd");
+          dd.textContent = v;
+          frag.append(dt, dd);
+        }
+        el.diagInfo.replaceChildren(frag);
+      } else {
+        el.diagCard.hidden = true;
+      }
+    }
+
+    function connectionInfo() {
+      const c = navigator.connection;
+      if (!c) return "";
+      const parts = [];
+      if (c.effectiveType) parts.push(c.effectiveType);
+      if (c.type) parts.push(c.type);
+      return parts.join(", ");
     }
 
     function deriveStatus(now) {
@@ -232,6 +311,8 @@
         el.statusSub.textContent = "";
       }
 
+      renderDiag();
+
       el.ip.textContent = lastData && lastData.ip ? lastData.ip : "—";
 
       el.lastSuccess.textContent = lastSuccessAt
@@ -260,9 +341,11 @@
         lastData = data;
         lastSuccessAt = Date.now();
         lastAttemptOk = true;
+        lastError = null;
         renderDetails();
       } catch (e) {
         lastAttemptOk = false;
+        lastError = describeError(e);
       } finally {
         clearTimeout(timer);
         inFlight = false;
