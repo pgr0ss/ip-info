@@ -98,10 +98,14 @@
     }
     .times .row {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
+      gap: 0.6rem;
       font-size: 0.9rem;
     }
-    .times .row span:first-child { color: var(--muted); }
+    .times .row span:first-child {
+      color: var(--muted);
+      flex: 0 0 7.5rem;
+    }
     .muted { color: var(--muted); }
     #diagCard { border: 1px solid var(--offline); }
     .diag-msg {
