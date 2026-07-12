@@ -260,7 +260,16 @@
           const dt = document.createElement("dt");
           dt.textContent = k;
           const dd = document.createElement("dd");
-          dd.textContent = v;
+          if (k === "endpoint") {
+            const a = document.createElement("a");
+            a.href = v;
+            a.textContent = v;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            dd.append(a);
+          } else {
+            dd.textContent = v;
+          }
           frag.append(dt, dd);
         }
         el.diagInfo.replaceChildren(frag);
