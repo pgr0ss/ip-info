@@ -139,6 +139,7 @@
     <div class="card times">
       <div class="row"><span>Last success</span><span id="lastSuccess">—</span></div>
       <div class="row"><span>Last attempt</span><span id="lastAttempt">—</span></div>
+      <div class="row"><span>Current time</span><span id="currentTime">—</span></div>
     </div>
   </main>
 
@@ -174,6 +175,7 @@
       details: document.getElementById("details"),
       lastSuccess: document.getElementById("lastSuccess"),
       lastAttempt: document.getElementById("lastAttempt"),
+      currentTime: document.getElementById("currentTime"),
     };
 
     function relAge(from, now) {
@@ -322,6 +324,7 @@
         ? clockTime(new Date(lastAttemptAt)) +
           " (" + (lastAttemptOk ? "ok" : "failed") + ")"
         : "—";
+      el.currentTime.textContent = clockTime(new Date(now));
     }
 
     async function fetchIp() {
