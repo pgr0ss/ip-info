@@ -218,8 +218,7 @@
         return {
           msg: e.apiError.title + " — " + e.apiError.message,
           hint: e.apiStatus === 429
-            ? "ipinfo.io rate limit hit (HTTP 429). The free tier allows a " +
-              "limited number of requests; sign up for a token to raise it."
+            ? "ipinfo.io rate limit hit (HTTP 429)"
             : "ipinfo.io returned an error (HTTP " + (e.apiStatus || "?") + ").",
         };
       }
@@ -235,9 +234,12 @@
       return {
         msg: name + ": " + message,
         hint: navigator.onLine
-          ? "The device reports it is online, but the request never completed. " +
-            "Likely a blocked request (content/ad blocker, VPN, or DNS filter), " +
-            "a CORS rejection, or the endpoint being unreachable."
+          ? "The device reports it is online, but the browser couldn't read a " +
+            "response. The most likely cause is an ipinfo.io rate limit " +
+            "(HTTP 429): its 429 response omits CORS headers, so the browser " +
+            "blocks JavaScript from reading the status or message. Other " +
+            "causes: a content/ad blocker, VPN, or DNS filter, or the endpoint " +
+            "being unreachable."
           : "The device reports it is offline \u2014 no network connection.",
       };
     }
