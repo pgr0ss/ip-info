@@ -26,7 +26,9 @@ Live site: https://ip.pgrs.net
   explicit fetch error.
 - Shows the last-known IP and details even while OFFLINE.
 - On failure, a red "Why it's failing" card surfaces the categorized error
-  (timeout / HTTP status / generic network failure) and a plain-English hint.
+  (timeout / HTTP status / unexpected response body / generic network failure)
+  and a plain-English hint. A 200 whose body isn't JSON with an `ip` string
+  counts as a failure, since something other than the endpoint answered.
 - Shows last-success time, last-attempt time, and current time, each with live
   relative ages.
 - Pauses polling while the tab is hidden and refreshes immediately when it

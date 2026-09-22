@@ -251,6 +251,13 @@
             : "ipinfo.io returned an error (HTTP " + (e.apiStatus || "?") + ").",
         };
       }
+      if (e && e.badResponse) {
+        return {
+          msg: "HTTP " + e.apiStatus + ", but the response wasn't the expected JSON",
+          hint: "Something other than the real endpoint answered, e.g. a " +
+            "captive portal, proxy, or content blocker.",
+        };
+      }
       if (e && typeof e.message === "string" && e.message.startsWith("HTTP ")) {
         return {
           msg: "Server responded with " + e.message,
@@ -396,6 +403,12 @@
           const e = new Error("HTTP " + res.status);
           e.apiStatus = data && data.status ? data.status : res.status;
           e.apiError = data && data.error ? data.error : null;
+          throw e;
+        }
+        if (!data || typeof data.ip !== "string") {
+          const e = new Error("Unexpected response body");
+          e.apiStatus = res.status;
+          e.badResponse = true;
           throw e;
         }
         return data;
