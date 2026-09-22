@@ -9,9 +9,14 @@ Live site: https://ip.pgrs.net
 
 ## What it does
 
-- Polls `https://ipinfo.io/json` every 10 seconds for the public IP plus
-  network details (hostname, city, region, country, org/ASN, coordinates,
-  postal, timezone).
+- Polls `https://api.ipify.org?format=json` every 10 seconds as the
+  connectivity probe and source of the current public IP. ipify documents its
+  API as usable without limit.
+- Fetches network details (hostname, city, region, country, org/ASN,
+  coordinates, postal, timezone) from `https://ipinfo.io/json` only when the
+  probe reports a new IP. A failed details fetch is retried on the next
+  successful probe. Details errors are shown inside the details card and never
+  affect ONLINE/OFFLINE.
 - Shows a big color-coded status banner: **ONLINE** (green), **OFFLINE**
   (red), or **CHECKING…** (grey).
 - Status is **recency-based**: ONLINE requires the last fetch to have both
@@ -24,8 +29,8 @@ Live site: https://ip.pgrs.net
   (timeout / HTTP status / generic network failure) and a plain-English hint.
 - Shows last-success time, last-attempt time, and current time, each with live
   relative ages.
-- Refreshes immediately when the tab returns to the foreground
-  (`visibilitychange`).
+- Pauses polling while the tab is hidden and refreshes immediately when it
+  returns to the foreground (`visibilitychange`).
 
 ## Architecture
 
@@ -35,16 +40,20 @@ be opened directly from disk or served by any static host.
 
 Key JS constants (top of the `<script>` block):
 
-- `ENDPOINT` — `https://ipinfo.io/json`
+- `PROBE_ENDPOINT` — `https://api.ipify.org?format=json` (IPv4-only, like
+  ipinfo.io, so both report the same address family)
+- `DETAILS_ENDPOINT` — `https://ipinfo.io/json`
 - `POLL_MS` — 10000 (fetch cadence)
 - `TICK_MS` — 1000 (re-render cadence for live relative times + staleness)
 - `TIMEOUT_MS` — 4000 (per-request `AbortController` timeout)
 - `STALE_AFTER` — 22000 (ONLINE freshness window; keep it above
   `POLL_MS + TIMEOUT_MS` or ONLINE will falsely blip to OFFLINE between polls)
 
-State is a handful of module-level variables (`lastData`, `lastSuccessAt`,
-`lastAttemptAt`, `lastAttemptOk`, `lastError`, `inFlight`). Status is *derived*
-at render time from these, never stored.
+State is a handful of module-level variables: probe state (`probeIp`,
+`lastSuccessAt`, `lastAttemptAt`, `lastAttemptOk`, `lastError`, `inFlight`,
+`pollTimer`) and details state (`lastData`, `detailsIp`, `detailsError`,
+`detailsInFlight`). Status is *derived* at render time from the probe state,
+never stored.
 
 ## Deployment
 
@@ -55,6 +64,13 @@ settings (one-time).
 
 ## Notes for future work (important gotchas)
 
+- **ipinfo.io's unauthenticated limit is 1,000 requests/day, shared by every
+  client behind the same public IP** (mobile carriers commonly put many users
+  behind one CGNAT address). Polling ipinfo every 10s used up that quota in
+  under 3 hours, which is why ipinfo is now only called when the probe IP
+  changes. Don't move ipinfo back onto the poll loop. While details fetches
+  keep failing, they are retried on every probe (every `POLL_MS`).
+
 - **The ipinfo.io 429 rate-limit response is unreadable from the browser.**
   When rate-limited, ipinfo returns HTTP 429 **without** an
   `Access-Control-Allow-Origin` header. On a cross-origin `fetch` the browser
@@ -63,7 +79,7 @@ settings (one-time).
   `{"status":429,...}` payload **cannot** be displayed. The code has a branch to
   parse an ipinfo error body (`e.apiError`), but it is effectively unreachable
   cross-origin and only works same-origin or if ipinfo ever adds CORS to error
-  responses. The OFFLINE diagnostics hint calls out 429 as the likely cause
+  responses. The details error hint calls out 429 as the likely cause
   instead. To actually read the error / raise the limit, use an ipinfo token
   (`?token=...`); token'd error responses do send CORS headers.
 
@@ -76,9 +92,7 @@ settings (one-time).
   it's why the diagnostics can only *guess* at the cause.
 
 - **No fallback endpoint** is currently implemented (considered and declined).
-  If reliability across blockers matters, the intended approach is to try
-  several IP endpoints and use whichever responds first, keeping ipinfo.io
-  primary for its richer data.
+  If ipify is blocked, the page reads OFFLINE even when the connection works.
 
 - After editing, sanity-check the inline JS with:
   `sed -n '/<script>/,/<\/script>/p' index.html | sed '1d;$d' | node --check /dev/stdin`
