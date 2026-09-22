@@ -5,7 +5,7 @@ tells you whether your device's internet connection is actually working. Built
 for checking a phone's mobile data: open the page and glance at the ONLINE /
 OFFLINE banner.
 
-Live site: https://pgr0ss.github.io/ip-info/
+Live site: https://ip.pgrs.net
 
 ## What it does
 
