@@ -21,9 +21,14 @@ Live site: https://ip.pgrs.net
   (red), or **CHECKING…** (grey).
 - Status is **recency-based**: ONLINE requires the last fetch to have both
   succeeded *and* landed within the freshness window (`STALE_AFTER`). A once-
-  successful but stale state reads OFFLINE. A 1-second render tick means the
-  display flips to OFFLINE on its own if polls silently stop, even with no
-  explicit fetch error.
+  successful but stale state reads OFFLINE.
+- **Resume rechecks instead of flashing OFFLINE.** Timers don't run while a
+  phone suspends the page, so on return every reading is stale. When the tab
+  becomes visible, or the 1-second tick sees no attempt within `STALE_AFTER`
+  (polling stopped for any reason), the page aborts any in-flight probe, shows
+  CHECKING… with "last confirmed …", and probes immediately. A probe whose
+  result arrives more than `STALE_AFTER` after it started spanned a suspension
+  and is discarded the same way.
 - Shows the last-known IP and details even while OFFLINE.
 - On failure, a red "Why it's failing" card surfaces the categorized error
   (timeout / HTTP status / unexpected response body / generic network failure)
@@ -52,7 +57,8 @@ Key JS constants (top of the `<script>` block):
   `POLL_MS + TIMEOUT_MS` or ONLINE will falsely blip to OFFLINE between polls)
 
 State is a handful of module-level variables: probe state (`probeIp`,
-`lastSuccessAt`, `lastAttemptAt`, `lastAttemptOk`, `lastError`, `inFlight`,
+`lastSuccessAt`, `lastAttemptAt`, `lastAttemptOk`, `lastError`, `probeCtrl`,
+`rechecking`,
 `pollTimer`) and details state (`lastData`, `detailsIp`, `detailsError`,
 `detailsInFlight`). Status is *derived* at render time from the probe state,
 never stored.
