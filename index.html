@@ -276,16 +276,21 @@
       };
     }
 
+    let diagKey = "";
+
     function renderDiag() {
       if (lastAttemptOk === false && lastError) {
         el.diagCard.hidden = false;
-        el.diagMsg.textContent = lastError.msg;
         const rows = [
           ["hint", lastError.hint],
           ["endpoint", PROBE_ENDPOINT],
           ["device online", navigator.onLine ? "yes" : "no"],
           ["connection", connectionInfo()],
         ];
+        const key = JSON.stringify([lastError.msg, rows]);
+        if (key === diagKey) return;
+        diagKey = key;
+        el.diagMsg.textContent = lastError.msg;
         const frag = document.createDocumentFragment();
         for (const [k, v] of rows) {
           if (!v) continue;
@@ -378,10 +383,6 @@
           : "";
       }
 
-      renderDiag();
-
-      el.ip.textContent = probeIp || (lastData && lastData.ip) || "—";
-
       el.lastSuccess.textContent = lastSuccessAt
         ? clockTime(new Date(lastSuccessAt)) + " (" + relAge(lastSuccessAt, now) + ")"
         : "—";
@@ -466,11 +467,15 @@
         lastAttemptOk = false;
         lastError = describeError(error, PROBE_BLOCKED_HINT);
       } else {
-        probeIp = data.ip;
+        if (data.ip !== probeIp) {
+          probeIp = data.ip;
+          el.ip.textContent = probeIp;
+        }
         lastSuccessAt = Date.now();
         lastAttemptOk = true;
         lastError = null;
       }
+      renderDiag();
       render();
       schedulePoll();
       if (lastAttemptOk && probeIp !== detailsIp && !detailsInFlight) {

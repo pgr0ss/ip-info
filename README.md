@@ -63,6 +63,11 @@ State is a handful of module-level variables: probe state (`probeIp`,
 `detailsInFlight`). Status is *derived* at render time from the probe state,
 never stored.
 
+The 1-second tick only rewrites text that actually changes every second (status
+banner and times). The IP and the "Why it's failing" card are written only
+when their content changes, since rewriting a node clears any text selection
+and replaces links mid-tap. Keep it that way so users can copy the IP or error.
+
 ## Deployment
 
 Hosted on GitHub Pages via `.github/workflows/pages.yml`, which deploys the
