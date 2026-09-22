@@ -42,8 +42,8 @@ Live site: https://ip.pgrs.net
 ## Architecture
 
 Everything lives in a **single file: `index.html`** — markup, inline CSS, and
-inline vanilla JavaScript. No build step, no dependencies, no framework. It can
-be opened directly from disk or served by any static host.
+inline vanilla JavaScript. No build step, no runtime dependencies, no
+framework. It can be opened directly from disk or served by any static host.
 
 Key JS constants (top of the `<script>` block):
 
@@ -70,10 +70,12 @@ and replaces links mid-tap. Keep it that way so users can copy the IP or error.
 
 ## Deployment
 
-Hosted on GitHub Pages via `.github/workflows/pages.yml`, which deploys the
-repo root on every push to `main`. `.nojekyll` disables Jekyll processing so
-files are served as-is. Pages source must be set to "GitHub Actions" in repo
-settings (one-time).
+Hosted on GitHub Pages via `.github/workflows/pages.yml`. Its `check` job runs
+`biome ci` on every pull request and every push to `main`; the `deploy` job
+needs `check` to pass and deploys the repo root only for pushes (or manual
+runs) on `main`, never for pull requests. `.nojekyll` disables Jekyll
+processing so files are served as-is. Pages source must be set to "GitHub
+Actions" in repo settings (one-time).
 
 ## Notes for future work (important gotchas)
 
@@ -107,6 +109,11 @@ settings (one-time).
 - **No fallback endpoint** is currently implemented (considered and declined).
   If ipify is blocked, the page reads OFFLINE even when the connection works.
 
+- Formatting and linting use [Biome](https://biomejs.dev), which handles the
+  HTML plus the embedded `<style>` and `<script>`. Run `npm install` once, then
+  `npm run check` (format + lint, read-only) or `npm run fix` (apply safe
+  fixes and formatting). Config is in `biome.json`.
+
 - After editing, sanity-check the inline JS with:
   `sed -n '/<script>/,/<\/script>/p' index.html | sed '1d;$d' | node --check /dev/stdin`
 
@@ -115,3 +122,4 @@ settings (one-time).
 - `index.html` — the entire app.
 - `.github/workflows/pages.yml` — GitHub Pages deploy workflow.
 - `.nojekyll` — disable Jekyll on Pages.
+- `package.json`, `biome.json` — dev-only Biome formatter/linter setup.
