@@ -120,6 +120,10 @@ Actions" in repo settings (one-time).
 ## Files
 
 - `index.html` — the entire app.
+- `icon.svg` — source icon; used directly as the browser tab favicon.
+- `apple-touch-icon.png` — 180×180 iOS home-screen icon rendered from
+  `icon.svg` (iOS ignores SVG touch icons). Regenerate after editing the SVG:
+  `magick -background black -density 72 icon.svg -resize 180x180 -strip PNG24:apple-touch-icon.png`
 - `.github/workflows/pages.yml` — GitHub Pages deploy workflow.
 - `.nojekyll` — disable Jekyll on Pages.
 - `package.json`, `biome.json` — dev-only Biome formatter/linter setup.
