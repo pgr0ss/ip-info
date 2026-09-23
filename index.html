@@ -194,6 +194,7 @@
       const POLL_MS = 10000;
       const TICK_MS = 1000;
       const TIMEOUT_MS = 4000;
+      const MAX_DETAILS_MISMATCHES = 3;
       const STALE_AFTER = 22000;
 
       const PROBE_BLOCKED_HINT =
@@ -231,6 +232,7 @@
       let detailsIp = null;
       let detailsError = null;
       let detailsInFlight = false;
+      let detailsMismatches = 0;
 
       const el = {
         status: document.getElementById("status"),
@@ -479,12 +481,16 @@
         }
       }
 
-      async function fetchDetails(ip) {
+      async function fetchDetails() {
         detailsInFlight = true;
         try {
           lastData = await fetchJson(DETAILS_ENDPOINT);
-          detailsIp = ip;
+          detailsIp = lastData.ip;
           detailsError = null;
+          // Right after a network change the request can still leave via the
+          // old route; retry a few times, but not forever (CGNAT or split
+          // tunnels can make the two services see different IPs indefinitely).
+          if (detailsIp !== probeIp) detailsMismatches++;
         } catch (e) {
           detailsError = describeError(e, DETAILS_BLOCKED_HINT);
         } finally {
@@ -529,6 +535,7 @@
           if (data.ip !== probeIp) {
             probeIp = data.ip;
             el.ip.textContent = probeIp;
+            detailsMismatches = 0;
           }
           lastSuccessAt = Date.now();
           lastAttemptOk = true;
@@ -537,8 +544,13 @@
         renderDiag();
         render();
         schedulePoll();
-        if (lastAttemptOk && probeIp !== detailsIp && !detailsInFlight) {
-          fetchDetails(probeIp);
+        if (
+          lastAttemptOk &&
+          probeIp !== detailsIp &&
+          detailsMismatches < MAX_DETAILS_MISMATCHES &&
+          !detailsInFlight
+        ) {
+          fetchDetails();
         }
       }
 
