@@ -13,10 +13,10 @@ Live site: https://ip.pgrs.net
   connectivity probe and source of the current public IP. ipify documents its
   API as usable without limit.
 - Fetches network details (hostname, city, region, country, org/ASN,
-  coordinates, postal, timezone) from `https://ipinfo.io/json` only when the
-  probe reports a new IP. A failed details fetch is retried on the next
-  successful probe. Details errors are shown inside the details card and never
-  affect ONLINE/OFFLINE.
+  coordinates, postal, timezone) for the probed IP from
+  `https://ipinfo.io/<ip>/json` only when the probe reports a new IP. A failed
+  details fetch is retried on the next successful probe. Details errors are
+  shown inside the details card and never affect ONLINE/OFFLINE.
 - Shows a big color-coded status banner: **ONLINE** (green), **OFFLINE**
   (red), or **CHECKING…** (grey).
 - Status is **recency-based**: ONLINE requires the last fetch to have both
@@ -47,9 +47,8 @@ framework. It can be opened directly from disk or served by any static host.
 
 Key JS constants (top of the `<script>` block):
 
-- `PROBE_ENDPOINT` — `https://api.ipify.org?format=json` (IPv4-only, like
-  ipinfo.io, so both report the same address family)
-- `DETAILS_ENDPOINT` — `https://ipinfo.io/json`
+- `PROBE_ENDPOINT` — `https://api.ipify.org?format=json` (IPv4-only)
+- `DETAILS_ENDPOINT` — `https://ipinfo.io` (queried as `/<ip>/json`)
 - `POLL_MS` — 10000 (fetch cadence)
 - `TICK_MS` — 1000 (re-render cadence for live relative times + staleness)
 - `TIMEOUT_MS` — 4000 (per-request `AbortController` timeout)
@@ -85,6 +84,12 @@ Actions" in repo settings (one-time).
   under 3 hours, which is why ipinfo is now only called when the probe IP
   changes. Don't move ipinfo back onto the poll loop. While details fetches
   keep failing, they are retried on every probe (every `POLL_MS`).
+
+- **Look up details by IP, not via `ipinfo.io/json`.** The no-IP endpoint
+  reports whichever address the request left from, and right after a network
+  change (especially switching back to a network ipinfo was just queried on)
+  a reused keep-alive connection can still carry it over the old route. The
+  page would then show the previous network's details as current.
 
 - **The ipinfo.io 429 rate-limit response is unreadable from the browser.**
   When rate-limited, ipinfo returns HTTP 429 **without** an
