@@ -7,6 +7,8 @@ OFFLINE banner.
 
 Live site: https://ip.pgrs.net
 
+<img src="screenshot.png" alt="ip-info showing ONLINE with a sample IP and network details" width="393">
+
 ## What it does
 
 - Polls `https://api.ipify.org?format=json` every 10 seconds as the
