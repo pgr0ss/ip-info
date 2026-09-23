@@ -1,136 +1,59 @@
 # ip-info
 
-A single-page static site that shows your current public IP and continuously
-tells you whether your device's internet connection is actually working. Built
-for checking a phone's mobile data: open the page and glance at the ONLINE /
-OFFLINE banner.
+Static page showing your public IP and whether your connection actually works.
+Built for checking a phone's mobile data at a glance.
 
-Live site: https://ip.pgrs.net
+Live: https://ip.pgrs.net
 
 <img src="screenshot.png" alt="ip-info showing ONLINE with a sample IP and network details" width="393">
 
-## What it does
+## How it works
 
-- Polls `https://api.ipify.org?format=json` every 10 seconds as the
-  connectivity probe and source of the current public IP. ipify documents its
-  API as usable without limit.
-- Fetches network details (hostname, city, region, country, org/ASN,
-  coordinates, postal, timezone) for the probed IP from
-  `https://ipinfo.io/<ip>/json` only when the probe reports a new IP. A failed
-  details fetch is retried on the next successful probe. Details errors are
-  shown inside the details card and never affect ONLINE/OFFLINE.
-- Shows a big color-coded status banner: **ONLINE** (green), **OFFLINE**
-  (red), or **CHECKING…** (grey).
-- Status is **recency-based**: ONLINE requires the last fetch to have both
-  succeeded *and* landed within the freshness window (`STALE_AFTER`). A once-
-  successful but stale state reads OFFLINE.
-- **Resume rechecks instead of flashing OFFLINE.** Timers don't run while a
-  phone suspends the page, so on return every reading is stale. When the tab
-  becomes visible, or the 1-second tick sees no attempt within `STALE_AFTER`
-  (polling stopped for any reason), the page aborts any in-flight probe, shows
-  CHECKING… with "last confirmed …", and probes immediately. A probe whose
-  result arrives more than `STALE_AFTER` after it started spanned a suspension
-  and is discarded the same way.
-- Shows the last-known IP and details even while OFFLINE.
-- On failure, a red "Why it's failing" card surfaces the categorized error
-  (timeout / HTTP status / unexpected response body / generic network failure)
-  and a plain-English hint. A 200 whose body isn't JSON with an `ip` string
-  counts as a failure, since something other than the endpoint answered.
-- Shows last-success time, last-attempt time, and current time, each with live
-  relative ages.
-- Pauses polling while the tab is hidden and refreshes immediately when it
-  returns to the foreground (`visibilitychange`).
+Everything is in `index.html` (inline CSS and vanilla JS, no build, no
+dependencies).
 
-## Architecture
+- Probes `api.ipify.org` every 10s. Status is ONLINE only if the last probe
+  succeeded within `STALE_AFTER`; otherwise OFFLINE. A 200 without an `ip`
+  string counts as a failure.
+- Fetches details from `ipinfo.io/<ip>/json` only when the IP changes (retried on
+  the next probe if it fails). Details errors never affect status.
+- On tab resume or stalled polling, shows CHECKING… and reprobes instead of
+  flashing OFFLINE. Probes that span a suspension are discarded.
+- On failure, shows the error category and a hint.
 
-Everything lives in a **single file: `index.html`** — markup, inline CSS, and
-inline vanilla JavaScript. No build step, no runtime dependencies, no
-framework. It can be opened directly from disk or served by any static host.
+Constants at the top of the `<script>`: `POLL_MS`, `TICK_MS`, `TIMEOUT_MS`,
+`STALE_AFTER`. Keep `STALE_AFTER > POLL_MS + TIMEOUT_MS` or ONLINE blips between
+polls.
 
-Key JS constants (top of the `<script>` block):
+## Gotchas
 
-- `PROBE_ENDPOINT` — `https://api.ipify.org?format=json` (IPv4-only)
-- `DETAILS_ENDPOINT` — `https://ipinfo.io` (queried as `/<ip>/json`)
-- `POLL_MS` — 10000 (fetch cadence)
-- `TICK_MS` — 1000 (re-render cadence for live relative times + staleness)
-- `TIMEOUT_MS` — 4000 (per-request `AbortController` timeout)
-- `STALE_AFTER` — 22000 (ONLINE freshness window; keep it above
-  `POLL_MS + TIMEOUT_MS` or ONLINE will falsely blip to OFFLINE between polls)
+- **ipinfo allows 1,000 unauthenticated requests/day per public IP**, shared by
+  everyone behind a carrier's CGNAT. Don't put it back on the poll loop.
+- **Query ipinfo by IP, not `ipinfo.io/json`.** After a network change, a reused
+  keep-alive connection can report the previous network.
+- **ipinfo's 429 has no CORS header**, so the browser surfaces it as a generic
+  `TypeError` and the body is unreadable. The `e.apiError` branch only works
+  with a token (`?token=...`) or if ipinfo adds CORS to errors.
+- **A blocked request looks the same as an outage.** There's no fallback probe,
+  so if ipify is blocked the page reads OFFLINE.
+- The 1s tick rewrites only the banner and times. The IP and error card change
+  only when their content does, so text selection and taps aren't disrupted.
 
-State is a handful of module-level variables: probe state (`probeIp`,
-`lastSuccessAt`, `lastAttemptAt`, `lastAttemptOk`, `lastError`, `probeCtrl`,
-`rechecking`,
-`pollTimer`) and details state (`lastData`, `detailsIp`, `detailsError`,
-`detailsInFlight`). Status is *derived* at render time from the probe state,
-never stored.
+## Development
 
-The 1-second tick only rewrites text that actually changes every second (status
-banner and times). The IP and the "Why it's failing" card are written only
-when their content changes, since rewriting a node clears any text selection
-and replaces links mid-tap. Keep it that way so users can copy the IP or error.
+```sh
+npm install
+npm run check   # Biome format + lint
+npm run fix     # apply fixes
+```
+
+Regenerate the iOS touch icon after editing `icon.svg`:
+
+```sh
+magick -background black -density 72 icon.svg -resize 180x180 -strip PNG24:apple-touch-icon.png
+```
 
 ## Deployment
 
-Hosted on GitHub Pages via `.github/workflows/pages.yml`. Its `check` job runs
-`biome ci` on every pull request and every push to `main`; the `deploy` job
-needs `check` to pass and deploys the repo root only for pushes (or manual
-runs) on `main`, never for pull requests. `.nojekyll` disables Jekyll
-processing so files are served as-is. Pages source must be set to "GitHub
-Actions" in repo settings (one-time).
-
-## Notes for future work (important gotchas)
-
-- **ipinfo.io's unauthenticated limit is 1,000 requests/day, shared by every
-  client behind the same public IP** (mobile carriers commonly put many users
-  behind one CGNAT address). Polling ipinfo every 10s used up that quota in
-  under 3 hours, which is why ipinfo is now only called when the probe IP
-  changes. Don't move ipinfo back onto the poll loop. While details fetches
-  keep failing, they are retried on every probe (every `POLL_MS`).
-
-- **Look up details by IP, not via `ipinfo.io/json`.** The no-IP endpoint
-  reports whichever address the request left from, and right after a network
-  change (especially switching back to a network ipinfo was just queried on)
-  a reused keep-alive connection can still carry it over the old route. The
-  page would then show the previous network's details as current.
-
-- **The ipinfo.io 429 rate-limit response is unreadable from the browser.**
-  When rate-limited, ipinfo returns HTTP 429 **without** an
-  `Access-Control-Allow-Origin` header. On a cross-origin `fetch` the browser
-  therefore rejects the request as a generic `TypeError: Load failed` and never
-  exposes the status or JSON body to JavaScript. That means the actual
-  `{"status":429,...}` payload **cannot** be displayed. The code has a branch to
-  parse an ipinfo error body (`e.apiError`), but it is effectively unreachable
-  cross-origin and only works same-origin or if ipinfo ever adds CORS to error
-  responses. The details error hint calls out 429 as the likely cause
-  instead. To actually read the error / raise the limit, use an ipinfo token
-  (`?token=...`); token'd error responses do send CORS headers.
-
-- **All iOS browsers use WebKit**, so Safari vs Firefox differences are not
-  engine/CORS differences. Failures that appear only in Firefox iOS are content
-  blockers or the same rate-limiting surfacing as `TypeError: Load failed`.
-
-- **A blocked/failed request is indistinguishable from a real outage** at the JS
-  level. This is acceptable here — both mean "data not working right now" — but
-  it's why the diagnostics can only *guess* at the cause.
-
-- **No fallback endpoint** is currently implemented (considered and declined).
-  If ipify is blocked, the page reads OFFLINE even when the connection works.
-
-- Formatting and linting use [Biome](https://biomejs.dev), which handles the
-  HTML plus the embedded `<style>` and `<script>`. Run `npm install` once, then
-  `npm run check` (format + lint, read-only) or `npm run fix` (apply safe
-  fixes and formatting). Config is in `biome.json`.
-
-- After editing, sanity-check the inline JS with:
-  `sed -n '/<script>/,/<\/script>/p' index.html | sed '1d;$d' | node --check /dev/stdin`
-
-## Files
-
-- `index.html` — the entire app.
-- `icon.svg` — source icon; used directly as the browser tab favicon.
-- `apple-touch-icon.png` — 180×180 iOS home-screen icon rendered from
-  `icon.svg` (iOS ignores SVG touch icons). Regenerate after editing the SVG:
-  `magick -background black -density 72 icon.svg -resize 180x180 -strip PNG24:apple-touch-icon.png`
-- `.github/workflows/pages.yml` — GitHub Pages deploy workflow.
-- `.nojekyll` — disable Jekyll on Pages.
-- `package.json`, `biome.json` — dev-only Biome formatter/linter setup.
+`.github/workflows/pages.yml` runs `biome ci` on PRs and pushes, then deploys the
+repo root to GitHub Pages on pushes to `main`.
